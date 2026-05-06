@@ -8,6 +8,12 @@ export enum DownloadStatus {
   FAILED = 'failed'
 }
 
+export interface BatchInfo {
+  totalPaths: number;
+  phase: 'download' | 'extract';
+  fileItems: FileItem[];
+}
+
 export class DownloadTask {
   id: string;
   file: FileItem;
@@ -16,6 +22,7 @@ export class DownloadTask {
   progress: number;
   retryCount: number;
   maxRetries: number;
+  batchInfo?: BatchInfo;
 
   constructor(file: FileItem, targetPath: string) {
     this.id = `${file.relativePath}_${Date.now()}`;

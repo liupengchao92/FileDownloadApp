@@ -22,11 +22,11 @@ export interface FileInfoResponse {
 export interface DownloadProgress {
   progress: number;
   done?: boolean;
-  currentFile?: string;
-  error?: string;
+  phase?: 'download' | 'extract';
 }
 
 export interface ApiError {
   code: string;
   message: string;
 }
+

@@ -1,9 +1,16 @@
 import { FileItem, FileListResponse } from '../model/FileItem';
-import { DownloadTask, DownloadStatus, DownloadEvent } from '../model/DownloadTask';
+import { DownloadStatus, DownloadEvent } from '../model/DownloadTask';
 import { ApiService } from '../service/ApiService';
 import { DownloadManager } from '../service/DownloadManager';
 import { FileUtils } from '../utils/FileUtils';
 import { LogUtil } from '../utils/LogUtil';
+import { promptAction } from '@kit.ArkUI';
+import { ObjectUtil } from '../utils/ObjectUtil';
+
+export interface FileDownloadState {
+  status: DownloadStatus;
+  progress: number;
+}
 
 export class FileListViewModel {
   currentPath: string = '';
@@ -13,8 +20,8 @@ export class FileListViewModel {
   errorMessage: string = '';
   isMultiSelectMode: boolean = false;
   selectedFiles: Set<string> = new Set();
-  downloadTasks: DownloadTask[] = [];
-  recentCompletedFiles: string[] = [];
+  fileDownloadStates: Record<string, FileDownloadState> = {};
+  batchState: FileDownloadState | null = null;
 
   private onUpdate: () => void;
   private api: ApiService;
@@ -27,18 +34,48 @@ export class FileListViewModel {
     LogUtil.info('FileListViewModel created');
 
     this.downloadManager.subscribe((event: DownloadEvent) => {
-      if (event.type === 'completed') {
-        this.recentCompletedFiles.push(event.task.file.name);
+      const task = event.task;
+      if (task.batchInfo) {
+        this.batchState = {
+          status: task.status,
+          progress: task.progress
+        };
+        if (task.status === DownloadStatus.COMPLETED) {
+          promptAction.showToast({ message: `批量下载完成`, duration: 2000 });
+          setTimeout(() => {
+            this.batchState = null;
+            this.onUpdate();
+          }, 2000);
+        } else if (task.status === DownloadStatus.FAILED) {
+          promptAction.showToast({ message: `批量下载失败`, duration: 2000 });
+          setTimeout(() => {
+            this.batchState = null;
+            this.onUpdate();
+          }, 2000);
+        }
+      } else {
+        const path = task.file.relativePath;
+        this.fileDownloadStates[path] = {
+          status: task.status,
+          progress: task.progress
+        };
+        if (task.status === DownloadStatus.COMPLETED) {
+          promptAction.showToast({ message: `${task.file.name} 下载完成`, duration: 2000 });
+          setTimeout(() => {
+            this.fileDownloadStates = ObjectUtil.removeKey(this.fileDownloadStates, path);
+            this.onUpdate();
+          }, 2000);
+        } else if (task.status === DownloadStatus.FAILED) {
+          promptAction.showToast({ message: `${task.file.name} 下载失败`, duration: 2000 });
+          setTimeout(() => {
+            this.fileDownloadStates = ObjectUtil.removeKey(this.fileDownloadStates, path);
+            this.onUpdate();
+          }, 2000);
+        }
       }
-      this.syncDownloadTasks();
+      this.fileDownloadStates = ObjectUtil.cloneRecord(this.fileDownloadStates);
       this.onUpdate();
     });
-  }
-
-  consumeRecentCompleted(): string[] {
-    const names = this.recentCompletedFiles.slice();
-    this.recentCompletedFiles = [];
-    return names;
   }
 
   async refresh(): Promise<void> {
@@ -132,66 +169,21 @@ export class FileListViewModel {
     LogUtil.info(`[VM] startDownload: ${file.name}`);
     const targetPath = FileUtils.buildLocalPath(file.relativePath);
     this.downloadManager.addTask(file, targetPath);
-    this.syncDownloadTasks();
     this.onUpdate();
   }
 
   async startBatchDownload(): Promise<void> {
     const files: FileItem[] = [];
-    const promises: Promise<void>[] = [];
     for (const item of this.fileList) {
-      if (!this.selectedFiles.has(item.name)) {
-        continue;
-      }
-      if (item.type === 'file') {
+      if (this.selectedFiles.has(item.name)) {
         files.push(item);
-      } else if (item.type === 'dir') {
-        promises.push(
-          this.api.getAllFiles(item.relativePath).then((expanded) => {
-            for (const f of expanded) {
-              files.push(f);
-            }
-          }).catch((err: Error) => {
-            LogUtil.error(`[VM] expand dir failed: ${item.name}, ${err.message}`);
-          })
-        );
       }
     }
-    await Promise.all(promises);
-    LogUtil.info(`[VM] startBatchDownload: ${files.length} files selected`);
+    LogUtil.info(`[VM] startBatchDownload: ${files.length} items selected`);
     if (files.length > 0) {
       this.downloadManager.addBatch(files);
-      this.syncDownloadTasks();
       this.onUpdate();
     }
-  }
-
-  retryTask(taskId: string): void {
-    LogUtil.info(`[VM] retryTask: ${taskId}`);
-    this.downloadManager.retry(taskId);
-    this.syncDownloadTasks();
-    this.onUpdate();
-  }
-
-  cancelTask(taskId: string): void {
-    LogUtil.info(`[VM] cancelTask: ${taskId}`);
-    this.downloadManager.cancel(taskId);
-    this.syncDownloadTasks();
-    this.onUpdate();
-  }
-
-  cancelAllTasks(): void {
-    LogUtil.info('[VM] cancelAllTasks');
-    this.downloadManager.cancelAll();
-    this.syncDownloadTasks();
-    this.onUpdate();
-  }
-
-  retryAllTasks(): void {
-    LogUtil.info('[VM] retryAllTasks');
-    this.downloadManager.retryAll();
-    this.syncDownloadTasks();
-    this.onUpdate();
   }
 
   private updateBreadcrumbs(): void {
@@ -224,9 +216,5 @@ export class FileListViewModel {
       });
     }
     this.fileList = items;
-  }
-
-  private syncDownloadTasks(): void {
-    this.downloadTasks = this.downloadManager.getAllTasks();
   }
 }

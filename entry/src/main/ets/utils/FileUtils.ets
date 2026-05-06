@@ -1,5 +1,6 @@
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { zlib as zip } from '@kit.BasicServicesKit';
 import { LogUtil } from './LogUtil';
 
 export class FileUtils {
@@ -106,5 +107,25 @@ export class FileUtils {
         throw e as Error;
       }
     }
+  }
+
+  static getBatchZipPath(): string {
+    const timestamp = Date.now();
+    return `${FileUtils.sandboxRoot}/.batch_${timestamp}.zip`;
+  }
+
+  static extractZip(zipPath: string, destDir: string): Promise<void> {
+    LogUtil.info(`extractZip: ${zipPath} -> ${destDir}`);
+    return new Promise((resolve, reject) => {
+      zip.decompressFile(zipPath, destDir, (err: BusinessError) => {
+        if (err) {
+          LogUtil.error(`extractZip failed: ${err.message}`);
+          reject(new Error(`Extract failed: ${err.message}`));
+        } else {
+          LogUtil.info(`extractZip success`);
+          resolve();
+        }
+      });
+    });
   }
 }

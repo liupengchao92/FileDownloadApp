@@ -1,4 +1,4 @@
-import { FileItem } from '../model/FileItem';
+import { FileItem, DownloadProgress } from '../model/FileItem';
 import { DownloadTask, DownloadStatus, DownloadEvent } from '../model/DownloadTask';
 import { ApiService } from './ApiService';
 import { FileUtils } from '../utils/FileUtils';
@@ -55,6 +55,25 @@ export class DownloadManager {
     return all;
   }
 
+  getTaskByPath(relativePath: string): DownloadTask | undefined {
+    for (const t of this.waitingQueue) {
+      if (t.file.relativePath === relativePath) {
+        return t;
+      }
+    }
+    for (const t of this.activeTasks) {
+      if (t[1].file.relativePath === relativePath) {
+        return t[1];
+      }
+    }
+    for (const t of this.completedTasks) {
+      if (t[1].file.relativePath === relativePath) {
+        return t[1];
+      }
+    }
+    return undefined;
+  }
+
   addTask(file: FileItem, targetPath: string): DownloadTask {
     LogUtil.info(`[DM] addTask: ${file.name}, target: ${targetPath}`);
     const task = new DownloadTask(file, targetPath);
@@ -64,19 +83,28 @@ export class DownloadManager {
     return task;
   }
 
-  addBatch(files: FileItem[]): DownloadTask[] {
+  addBatch(files: FileItem[]): DownloadTask {
     LogUtil.info(`[DM] addBatch: ${files.length} files`);
-    const tasks: DownloadTask[] = [];
-    for (const file of files) {
-      const targetPath = FileUtils.buildLocalPath(file.relativePath);
-      const task = new DownloadTask(file, targetPath);
-      this.waitingQueue.push(task);
-      tasks.push(task);
-      this.notify({ type: 'statusChange', taskId: task.id, task });
-    }
-    LogUtil.info(`[DM] addBatch: ${tasks.length} tasks queued`);
+    const batchFileName = `Batch (${files.length} files)`;
+    const batchFile: FileItem = {
+      name: batchFileName,
+      type: 'file',
+      size: 0,
+      mtime: new Date().toISOString(),
+      relativePath: '',
+      isDownloaded: false
+    };
+    const task = new DownloadTask(batchFile, '');
+    task.batchInfo = {
+      totalPaths: files.length,
+      phase: 'download',
+      fileItems: files
+    };
+    this.waitingQueue.push(task);
+    this.notify({ type: 'statusChange', taskId: task.id, task });
+    LogUtil.info(`[DM] addBatch: 1 batch task queued (${files.length} files)`);
     this.scheduleNext();
-    return tasks;
+    return task;
   }
 
   cancel(taskId: string): void {
@@ -89,7 +117,9 @@ export class DownloadManager {
       this.activeTasks.delete(taskId);
       this.completedTasks.set(taskId, active);
       this.notify({ type: 'statusChange', taskId, task: active });
-      FileUtils.removeTempFile(active.targetPath + '.tmp');
+      if (!active.batchInfo) {
+        FileUtils.removeTempFile(active.targetPath + '.tmp');
+      }
       this.scheduleNext();
       return;
     }
@@ -166,21 +196,12 @@ export class DownloadManager {
     this.notify({ type: 'statusChange', taskId: task.id, task });
     LogUtil.info(`[DM] executeTask: ${task.file.name}, active: ${this.activeTasks.size}/${MAX_CONCURRENT}`);
 
-    const tmpPath = task.targetPath + '.tmp';
-
     try {
-      await FileUtils.ensureDir(task.targetPath);
-
-      await ApiService.getInstance().downloadFile(
-        task.file.relativePath,
-        tmpPath,
-        (progress) => {
-          task.progress = progress.progress;
-          this.notify({ type: 'progress', taskId: task.id, task });
-        }
-      );
-
-      await FileUtils.renameFile(tmpPath, task.targetPath);
+      if (task.batchInfo) {
+        await this.executeBatchTask(task);
+      } else {
+        await this.executeSingleTask(task);
+      }
 
       task.status = DownloadStatus.COMPLETED;
       task.progress = 100;
@@ -190,7 +211,6 @@ export class DownloadManager {
       LogUtil.info(`[DM] task completed: ${task.file.name}`);
     } catch (err) {
       this.activeTasks.delete(task.id);
-      FileUtils.removeTempFile(tmpPath);
       LogUtil.warn(`[DM] task failed: ${task.file.name}, error: ${err.message}`);
 
       if (this.cancelledTasks.has(task.id)) {
@@ -223,5 +243,73 @@ export class DownloadManager {
     }
 
     this.scheduleNext();
+  }
+
+  private async executeSingleTask(task: DownloadTask): Promise<void> {
+    const tmpPath = task.targetPath + '.tmp';
+    try {
+      await FileUtils.ensureDir(task.targetPath);
+
+      await ApiService.getInstance().downloadFile(
+        task.file.relativePath,
+        tmpPath,
+        (progress) => {
+          task.progress = progress.progress;
+          this.notify({ type: 'progress', taskId: task.id, task });
+        }
+      );
+
+      await FileUtils.renameFile(tmpPath, task.targetPath);
+    } catch (err) {
+      FileUtils.removeTempFile(tmpPath);
+      throw err as Error;
+    }
+  }
+
+  private async executeBatchTask(task: DownloadTask): Promise<void> {
+    const sandboxRoot = FileUtils.getSandboxRoot();
+    const zipPath = FileUtils.getBatchZipPath();
+    const paths: string[] = [];
+
+    for (const item of task.batchInfo!.fileItems) {
+      paths.push(item.relativePath);
+    }
+
+    if (task.batchInfo) {
+      task.batchInfo.phase = 'download';
+    }
+    this.notify({ type: 'statusChange', taskId: task.id, task });
+
+    try {
+      await ApiService.getInstance().downloadBatch(
+        paths,
+        zipPath,
+        (progress: DownloadProgress) => {
+          task.progress = progress.progress;
+          this.notify({ type: 'progress', taskId: task.id, task });
+        }
+      );
+
+      if (this.cancelledTasks.has(task.id)) {
+        FileUtils.removeTempFile(zipPath);
+        throw new Error('Task cancelled before extraction');
+      }
+
+      if (task.batchInfo) {
+        task.batchInfo.phase = 'extract';
+      }
+      task.progress = 60;
+      this.notify({ type: 'statusChange', taskId: task.id, task });
+
+      await FileUtils.extractZip(zipPath, sandboxRoot);
+
+      task.progress = 99;
+      this.notify({ type: 'progress', taskId: task.id, task });
+    } catch (err) {
+      FileUtils.removeTempFile(zipPath);
+      throw err as Error;
+    }
+
+    FileUtils.removeTempFile(zipPath);
   }
 }
