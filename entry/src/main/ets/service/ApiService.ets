@@ -164,6 +164,7 @@ export class ApiService {
         filePath: tmpPath
       }).then((task) => {
         task.on('progress', (received: number, total: number) => {
+          LogUtil.info(`[ApiService] progress  received:${received}  total:${total}`);
           if (total > 0) {
             onProgress({ progress: Math.round((received / total) * 100) });
           }

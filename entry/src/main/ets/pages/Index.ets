@@ -1,9 +1,9 @@
 import { FileItem } from '../model/FileItem';
 import { DownloadStatus } from '../model/DownloadTask';
 import { FileDownloadState, FileListViewModel } from '../viewmodel/FileListViewModel';
+import { FileRowComponent } from '../components/FileRowComponent';
 import { FileUtils } from '../utils/FileUtils';
 import { LogUtil } from '../utils/LogUtil';
-import { ObjectUtil } from '../utils/ObjectUtil';
 import { ApiService } from '../service/ApiService';
 import { common } from '@kit.AbilityKit';
 
@@ -17,7 +17,6 @@ struct Index {
   @State isMultiSelectMode: boolean = false;
   @State selectedFilesCount: number = 0;
   @State isRefreshing: boolean = false;
-  @State fileDownloadStates: Record<string, FileDownloadState> = {};
   @State batchState: FileDownloadState | null = null;
   private viewModel: FileListViewModel = new FileListViewModel(() => {
     this.syncState();
@@ -42,7 +41,6 @@ struct Index {
     this.errorMessage = this.viewModel.errorMessage;
     this.isMultiSelectMode = this.viewModel.isMultiSelectMode;
     this.selectedFilesCount = this.viewModel.selectedFiles.size;
-    this.fileDownloadStates = ObjectUtil.cloneRecord(this.viewModel.fileDownloadStates);
     this.batchState = this.viewModel.batchState;
   }
 
@@ -149,25 +147,21 @@ struct Index {
             .width(36)
             .height(36)
             .style({ strokeWidth: 4 })
-            .color($r('sys.color.ohos_id_color_primary'))
+            .color('#09bb07')
           Text(`${this.batchState.progress}%`)
             .fontSize(10)
-            .fontColor($r('sys.color.ohos_id_color_primary'))
+            .fontColor('#09bb07')
         }
         .width(44)
         .height(44)
       } else if (this.batchState && this.batchState.status === DownloadStatus.COMPLETED) {
-        Text('✓')
-          .fontSize(20)
-          .fontColor(Color.Green)
-          .width(44)
-          .height(44)
+        Image($r('app.media.ic_complete'))
+          .width(24)
+          .height(24)
       } else if (this.batchState && this.batchState.status === DownloadStatus.FAILED) {
-        Text('✗')
-          .fontSize(20)
-          .fontColor(Color.Red)
-          .width(44)
-          .height(44)
+        Image($r('app.media.ic_error'))
+          .width(24)
+          .height(24)
       } else if (this.selectedFilesCount > 0) {
         Button() {
           Text(`下载 (${this.selectedFilesCount})`)
@@ -262,7 +256,14 @@ struct Index {
         List() {
           ForEach(this.fileList, (item: FileItem) => {
             ListItem() {
-              this.buildFileRow(item)
+              FileRowComponent({
+                item: item,
+                isMultiSelectMode: this.isMultiSelectMode,
+                isSelected: this.viewModel.selectedFiles.has(item.name),
+                onDownload: (file: FileItem) => { this.viewModel.startDownload(file) },
+                onSelect: (name: string) => { this.viewModel.toggleSelect(name) },
+                onNavigate: (dir: FileItem) => { this.viewModel.navigateToDir(dir) }
+              })
             }
           })
         }
@@ -284,98 +285,5 @@ struct Index {
     }
   }
 
-  @Builder
-  buildFileRow(item: FileItem) {
-    Row() {
-      if (this.isMultiSelectMode) {
-        Checkbox({ name: item.name })
-          .key(`cb_${item.name}_${this.viewModel.selectedFiles.has(item.name)}`)
-          .select(this.viewModel.selectedFiles.has(item.name))
-          .selectedColor($r('sys.color.ohos_id_color_primary'))
-          .onChange(() => {
-            this.viewModel.toggleSelect(item.name)
-          })
-          .margin({ right: 8 })
-      }
 
-      Image(item.type === 'dir' ? $r('app.media.ic_folder') : $r('app.media.ic_file'))
-        .size({ width: 24, height: 25 })
-
-      Column() {
-        Text(item.name)
-          .fontSize(16)
-          .width('100%')
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .maxLines(1)
-
-        Row() {
-          Text(FileUtils.formatFileSize(item.size))
-            .fontSize(12)
-            .fontColor($r('sys.color.ohos_id_color_secondary'))
-          Text('  ')
-          Text(FileUtils.formatDate(item.mtime))
-            .fontSize(12)
-            .fontColor($r('sys.color.ohos_id_color_secondary'))
-        }
-        .width('100%')
-      }
-      .layoutWeight(1)
-      .margin({ left: 8, right: 8 })
-
-      if (item.type === 'file') {
-        this.buildDownloadIndicator(this.fileDownloadStates[item.relativePath], item)
-      }
-    }
-    .width('100%')
-    .height(48)
-    .padding({ left: 14, right: 14 })
-    .onClick(() => {
-      if (this.isMultiSelectMode) {
-        this.viewModel.toggleSelect(item.name)
-      } else if (item.type === 'dir') {
-        this.viewModel.navigateToDir(item)
-      }
-    })
-  }
-
-  getFileDownloadState(relativePath: string): FileDownloadState | undefined {
-    return this.fileDownloadStates[relativePath];
-  }
-
-  @Builder
-  buildDownloadIndicator(state: FileDownloadState | undefined, item: FileItem) {
-    if (state !== undefined && state.status === DownloadStatus.DOWNLOADING) {
-      Stack() {
-        Progress({ value: state.progress, total: 100, type: ProgressType.Ring })
-          .width(28)
-          .height(28)
-          .style({ strokeWidth: 3 })
-          .color($r('sys.color.ohos_id_color_primary'))
-        Text(`${state.progress}%`)
-          .fontSize(9)
-          .fontColor($r('sys.color.ohos_id_color_primary'))
-      }
-      .width(28)
-      .height(28)
-    } else if (state !== undefined && state.status === DownloadStatus.COMPLETED) {
-      Text('✓')
-        .fontSize(18)
-        .fontColor(Color.Green)
-        .width(28)
-        .height(28)
-    } else if (state !== undefined && state.status === DownloadStatus.FAILED) {
-      Text('✗')
-        .fontSize(18)
-        .fontColor(Color.Red)
-        .width(28)
-        .height(28)
-    } else {
-      Image($r('app.media.ic_download'))
-        .width(24)
-        .height(24)
-        .onClick(() => {
-          this.viewModel.startDownload(item)
-        })
-    }
-  }
 }
