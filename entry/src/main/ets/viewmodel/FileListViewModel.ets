@@ -10,6 +10,8 @@ import { ObjectUtil } from '../utils/ObjectUtil';
 export interface FileDownloadState {
   status: DownloadStatus;
   progress: number;
+  indeterminate?: boolean;
+  phase?: string;
 }
 
 export class FileListViewModel {
@@ -38,12 +40,16 @@ export class FileListViewModel {
       if (task.batchInfo) {
         this.batchState = {
           status: task.status,
-          progress: task.progress
+          progress: task.progress,
+          indeterminate: task.indeterminate,
+          phase: task.batchInfo?.phase
         };
         if (task.status === DownloadStatus.COMPLETED) {
           promptAction.showToast({ message: `批量下载完成`, duration: 2000 });
           setTimeout(() => {
             this.batchState = null;
+            this.isMultiSelectMode = false;
+            this.selectedFiles.clear();
             this.onUpdate();
           }, 2000);
         } else if (task.status === DownloadStatus.FAILED) {
@@ -57,7 +63,8 @@ export class FileListViewModel {
         const path = task.file.relativePath;
         this.fileDownloadStates[path] = {
           status: task.status,
-          progress: task.progress
+          progress: task.progress,
+          indeterminate: task.indeterminate
         };
         if (task.status === DownloadStatus.COMPLETED) {
           promptAction.showToast({ message: `${task.file.name} 下载完成`, duration: 2000 });

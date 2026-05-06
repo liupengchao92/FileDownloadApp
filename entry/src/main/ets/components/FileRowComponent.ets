@@ -98,18 +98,25 @@ export struct FileRowComponent {
   @Builder
   buildDownloadIndicator() {
     if (this.downloadState !== null && this.downloadState.status === DownloadStatus.DOWNLOADING) {
-      Stack() {
-        Progress({ value: this.downloadState.progress, total: 100, type: ProgressType.Ring })
+      if (this.downloadState.indeterminate) {
+        LoadingProgress()
           .width(28)
           .height(28)
-          .style({ strokeWidth: 3 })
           .color('#09bb07')
-        Text(`${this.downloadState.progress}%`)
-          .fontSize(9)
-          .fontColor('#09bb07')
+      } else {
+        Stack() {
+          Progress({ value: this.downloadState.progress, total: 100, type: ProgressType.Ring })
+            .width(28)
+            .height(28)
+            .style({ strokeWidth: 3 })
+            .color('#09bb07')
+          Text(`${this.downloadState.progress}%`)
+            .fontSize(9)
+            .fontColor('#09bb07')
+        }
+        .width(28)
+        .height(28)
       }
-      .width(28)
-      .height(28)
     } else if (this.downloadState !== null && this.downloadState.status === DownloadStatus.COMPLETED) {
       Image($r('app.media.ic_complete'))
         .width(24)

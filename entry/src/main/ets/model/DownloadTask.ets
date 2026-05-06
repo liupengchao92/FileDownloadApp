@@ -20,6 +20,7 @@ export class DownloadTask {
   targetPath: string;
   status: DownloadStatus;
   progress: number;
+  indeterminate: boolean;
   retryCount: number;
   maxRetries: number;
   batchInfo?: BatchInfo;
@@ -30,6 +31,7 @@ export class DownloadTask {
     this.targetPath = targetPath;
     this.status = DownloadStatus.WAITING;
     this.progress = 0;
+    this.indeterminate = false;
     this.retryCount = 0;
     this.maxRetries = 3;
   }

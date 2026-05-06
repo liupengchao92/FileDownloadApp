@@ -142,18 +142,38 @@ struct Index {
       Blank()
 
       if (this.batchState && this.batchState.status === DownloadStatus.DOWNLOADING) {
-        Stack() {
-          Progress({ value: this.batchState.progress, total: 100, type: ProgressType.Ring })
+        if (this.batchState.indeterminate) {
+          LoadingProgress()
             .width(36)
             .height(36)
-            .style({ strokeWidth: 4 })
             .color('#09bb07')
-          Text(`${this.batchState.progress}%`)
-            .fontSize(10)
-            .fontColor('#09bb07')
+        } else if (this.batchState.phase === 'extract') {
+          Stack() {
+            Progress({ value: this.batchState.progress, total: 100, type: ProgressType.Ring })
+              .width(36)
+              .height(36)
+              .style({ strokeWidth: 4 })
+              .color('#09bb07')
+            Text('解压中')
+              .fontSize(10)
+              .fontColor('#09bb07')
+          }
+          .width(44)
+          .height(44)
+        } else {
+          Stack() {
+            Progress({ value: this.batchState.progress, total: 100, type: ProgressType.Ring })
+              .width(36)
+              .height(36)
+              .style({ strokeWidth: 4 })
+              .color('#09bb07')
+            Text(`${this.batchState.progress}%`)
+              .fontSize(10)
+              .fontColor('#09bb07')
+          }
+          .width(44)
+          .height(44)
         }
-        .width(44)
-        .height(44)
       } else if (this.batchState && this.batchState.status === DownloadStatus.COMPLETED) {
         Image($r('app.media.ic_complete'))
           .width(24)

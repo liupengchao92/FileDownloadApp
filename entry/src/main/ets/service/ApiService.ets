@@ -167,6 +167,8 @@ export class ApiService {
           LogUtil.info(`[ApiService] progress  received:${received}  total:${total}`);
           if (total > 0) {
             onProgress({ progress: Math.round((received / total) * 100) });
+          } else {
+            onProgress({ progress: 0, indeterminate: true });
           }
         });
         task.on('complete', () => {

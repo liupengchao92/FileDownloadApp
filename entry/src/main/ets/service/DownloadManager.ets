@@ -253,8 +253,11 @@ export class DownloadManager {
       await ApiService.getInstance().downloadFile(
         task.file.relativePath,
         tmpPath,
-        (progress) => {
+        (progress: DownloadProgress) => {
           task.progress = progress.progress;
+          if (progress.indeterminate) {
+            task.indeterminate = true;
+          }
           this.notify({ type: 'progress', taskId: task.id, task });
         }
       );
@@ -286,6 +289,9 @@ export class DownloadManager {
         zipPath,
         (progress: DownloadProgress) => {
           task.progress = progress.progress;
+          if (progress.indeterminate) {
+            task.indeterminate = true;
+          }
           this.notify({ type: 'progress', taskId: task.id, task });
         }
       );

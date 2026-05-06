@@ -23,6 +23,7 @@ export interface DownloadProgress {
   progress: number;
   done?: boolean;
   phase?: 'download' | 'extract';
+  indeterminate?: boolean;
 }
 
 export interface ApiError {
