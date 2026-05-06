@@ -1,0 +1,232 @@
+import { FileItem, FileListResponse } from '../model/FileItem';
+import { DownloadTask, DownloadStatus, DownloadEvent } from '../model/DownloadTask';
+import { ApiService } from '../service/ApiService';
+import { DownloadManager } from '../service/DownloadManager';
+import { FileUtils } from '../utils/FileUtils';
+import { LogUtil } from '../utils/LogUtil';
+
+export class FileListViewModel {
+  currentPath: string = '';
+  breadcrumbs: string[] = [''];
+  fileList: FileItem[] = [];
+  isLoading: boolean = false;
+  errorMessage: string = '';
+  isMultiSelectMode: boolean = false;
+  selectedFiles: Set<string> = new Set();
+  downloadTasks: DownloadTask[] = [];
+  recentCompletedFiles: string[] = [];
+
+  private onUpdate: () => void;
+  private api: ApiService;
+  private downloadManager: DownloadManager;
+
+  constructor(onUpdate: () => void) {
+    this.onUpdate = onUpdate;
+    this.api = ApiService.getInstance();
+    this.downloadManager = DownloadManager.getInstance();
+    LogUtil.info('FileListViewModel created');
+
+    this.downloadManager.subscribe((event: DownloadEvent) => {
+      if (event.type === 'completed') {
+        this.recentCompletedFiles.push(event.task.file.name);
+      }
+      this.syncDownloadTasks();
+      this.onUpdate();
+    });
+  }
+
+  consumeRecentCompleted(): string[] {
+    const names = this.recentCompletedFiles.slice();
+    this.recentCompletedFiles = [];
+    return names;
+  }
+
+  async refresh(): Promise<void> {
+    this.isLoading = true;
+    this.errorMessage = '';
+    this.onUpdate();
+    LogUtil.info(`[VM] refresh currentPath: "${this.currentPath}"`);
+
+    try {
+      const response = await this.api.getFileList(this.currentPath);
+      this.buildFileList(response);
+      this.errorMessage = '';
+      LogUtil.info(`[VM] refresh success, files: ${this.fileList.length}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load file list';
+      this.errorMessage = msg;
+      LogUtil.error(`[VM] refresh failed: ${msg}`);
+    } finally {
+      this.isLoading = false;
+      this.onUpdate();
+    }
+  }
+
+  async navigateToDir(dir: FileItem): Promise<void> {
+    LogUtil.info(`[VM] navigateToDir: ${dir.name} (${dir.relativePath})`);
+    this.currentPath = dir.relativePath;
+    this.updateBreadcrumbs();
+    await this.refresh();
+  }
+
+  navigateToBreadcrumb(index: number): void {
+    if (index < 0 || index >= this.breadcrumbs.length) {
+      return;
+    }
+    const segments: string[] = [];
+    for (let i = 1; i <= index; i++) {
+      segments.push(this.breadcrumbs[i]);
+    }
+    this.currentPath = segments.join('/');
+    LogUtil.info(`[VM] navigateToBreadcrumb: ${index} -> path="${this.currentPath}"`);
+    this.updateBreadcrumbs();
+    this.refresh();
+  }
+
+  goBack(): void {
+    if (this.breadcrumbs.length <= 1) {
+      return;
+    }
+    const newBreadcrumbs = this.breadcrumbs.slice(0, -1);
+    const segments: string[] = [];
+    for (let i = 1; i < newBreadcrumbs.length; i++) {
+      segments.push(newBreadcrumbs[i]);
+    }
+    this.currentPath = segments.join('/');
+    LogUtil.info(`[VM] goBack -> path="${this.currentPath}"`);
+    this.updateBreadcrumbs();
+    this.refresh();
+  }
+
+  toggleMultiSelect(): void {
+    this.isMultiSelectMode = !this.isMultiSelectMode;
+    if (!this.isMultiSelectMode) {
+      this.selectedFiles.clear();
+    }
+    LogUtil.info(`[VM] toggleMultiSelect: ${this.isMultiSelectMode}`);
+    this.onUpdate();
+  }
+
+  toggleSelect(fileName: string): void {
+    if (this.selectedFiles.has(fileName)) {
+      this.selectedFiles.delete(fileName);
+    } else {
+      this.selectedFiles.add(fileName);
+    }
+    this.onUpdate();
+  }
+
+  selectAll(): void {
+    for (const item of this.fileList) {
+      this.selectedFiles.add(item.name);
+    }
+    this.onUpdate();
+  }
+
+  deselectAll(): void {
+    this.selectedFiles.clear();
+    this.onUpdate();
+  }
+
+  startDownload(file: FileItem): void {
+    LogUtil.info(`[VM] startDownload: ${file.name}`);
+    const targetPath = FileUtils.buildLocalPath(file.relativePath);
+    this.downloadManager.addTask(file, targetPath);
+    this.syncDownloadTasks();
+    this.onUpdate();
+  }
+
+  async startBatchDownload(): Promise<void> {
+    const files: FileItem[] = [];
+    const promises: Promise<void>[] = [];
+    for (const item of this.fileList) {
+      if (!this.selectedFiles.has(item.name)) {
+        continue;
+      }
+      if (item.type === 'file') {
+        files.push(item);
+      } else if (item.type === 'dir') {
+        promises.push(
+          this.api.getAllFiles(item.relativePath).then((expanded) => {
+            for (const f of expanded) {
+              files.push(f);
+            }
+          }).catch((err: Error) => {
+            LogUtil.error(`[VM] expand dir failed: ${item.name}, ${err.message}`);
+          })
+        );
+      }
+    }
+    await Promise.all(promises);
+    LogUtil.info(`[VM] startBatchDownload: ${files.length} files selected`);
+    if (files.length > 0) {
+      this.downloadManager.addBatch(files);
+      this.syncDownloadTasks();
+      this.onUpdate();
+    }
+  }
+
+  retryTask(taskId: string): void {
+    LogUtil.info(`[VM] retryTask: ${taskId}`);
+    this.downloadManager.retry(taskId);
+    this.syncDownloadTasks();
+    this.onUpdate();
+  }
+
+  cancelTask(taskId: string): void {
+    LogUtil.info(`[VM] cancelTask: ${taskId}`);
+    this.downloadManager.cancel(taskId);
+    this.syncDownloadTasks();
+    this.onUpdate();
+  }
+
+  cancelAllTasks(): void {
+    LogUtil.info('[VM] cancelAllTasks');
+    this.downloadManager.cancelAll();
+    this.syncDownloadTasks();
+    this.onUpdate();
+  }
+
+  retryAllTasks(): void {
+    LogUtil.info('[VM] retryAllTasks');
+    this.downloadManager.retryAll();
+    this.syncDownloadTasks();
+    this.onUpdate();
+  }
+
+  private updateBreadcrumbs(): void {
+    if (!this.currentPath) {
+      this.breadcrumbs = [''];
+      return;
+    }
+    this.breadcrumbs = [''];
+    const segments = this.currentPath.split('/');
+    for (const seg of segments) {
+      if (seg) {
+        this.breadcrumbs.push(seg);
+      }
+    }
+  }
+
+  private buildFileList(response: FileListResponse): void {
+    const items: FileItem[] = [];
+    for (const f of response.files) {
+      const relPath = this.currentPath
+        ? `${this.currentPath}/${f.name}`
+        : f.name;
+      items.push({
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        mtime: f.mtime,
+        relativePath: relPath,
+        isDownloaded: false
+      });
+    }
+    this.fileList = items;
+  }
+
+  private syncDownloadTasks(): void {
+    this.downloadTasks = this.downloadManager.getAllTasks();
+  }
+}
