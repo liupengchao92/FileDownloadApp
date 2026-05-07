@@ -117,21 +117,6 @@ export class FileUtils {
       return isoString;
     }
   }
-
-  /**
-   * 检查存储空间是否充足（存根实现）
-   * 当前始终返回 true，未实际检查存储空间
-   * @param requiredBytes 所需字节数
-   */
-  static async checkStorageSpace(requiredBytes: number): Promise<boolean> {
-    try {
-      await fileIo.mkdir(FileUtils.sandboxRoot, true);
-      return true;
-    } catch {
-      return true;
-    }
-  }
-
   /**
    * 删除临时文件（静默失败）
    * 下载失败或取消时调用，清理 .tmp 文件

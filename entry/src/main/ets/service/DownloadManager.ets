@@ -333,7 +333,6 @@ export class DownloadManager {
     try {
       // 确保目标文件的父目录存在
       await FileUtils.ensureDir(task.targetPath);
-
       // 调用系统下载服务下载文件到临时路径
       await ApiService.getInstance().downloadFile(
         task.file.relativePath,
@@ -369,13 +368,11 @@ export class DownloadManager {
   private async executeBatchTask(task: DownloadTask): Promise<void> {
     const sandboxRoot = FileUtils.getSandboxRoot();
     const zipPath = FileUtils.getBatchZipPath();
-
     // 收集所有参与批量下载的文件相对路径
     const paths: string[] = [];
     for (const item of task.batchInfo!.fileItems) {
       paths.push(item.relativePath);
     }
-
     // 阶段一：下载 ZIP 文件
     if (task.batchInfo) {
       task.batchInfo.phase = 'download';

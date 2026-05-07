@@ -1,6 +1,5 @@
-import { FileItem, DownloadProgress, FileInfoResponse, FileListResponse, ApiError } from '../model/FileItem';
+import { DownloadProgress, FileListResponse } from '../model/FileItem';
 import http from '@ohos.net.http';
-import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { request } from '@kit.BasicServicesKit';
 import { LogUtil } from '../utils/LogUtil';
@@ -87,91 +86,6 @@ export class ApiService {
           resolve(result);
         } catch (e) {
           LogUtil.error(`[ApiService] getFileList parse error, raw: ${data.result}`);
-          reject(new Error('Failed to parse response'));
-        }
-      });
-    });
-  }
-
-  /**
-   * 递归获取指定目录下的所有文件（含子目录）
-   * 注意：当前代码中未被调用，预留接口
-   * @param path 目录路径
-   * @returns 展平的文件列表，relativePath 已拼接完整
-   */
-  async getAllFiles(path: string): Promise<FileItem[]> {
-    const url = `${ApiService.BASE_URL}/files?path=${encodeURIComponent(path)}&recursive=true`;
-    LogUtil.info(`[ApiService] getAllFiles request: ${url}`);
-
-    return new Promise((resolve, reject) => {
-      const request = http.createHttp();
-      request.request(url, {
-        method: http.RequestMethod.GET,
-        expectDataType: http.HttpDataType.STRING,
-        header: { 'Accept': 'application/json' }
-      }, (err, data) => {
-        request.destroy();
-        if (err) {
-          reject(new Error(`Network error: ${err.message}`));
-          return;
-        }
-        if (data.responseCode !== 200) {
-          reject(this.parseError(data.result as string, data.responseCode));
-          return;
-        }
-        try {
-          const result = JSON.parse(data.result as string) as FileListResponse;
-          LogUtil.info(`[ApiService] getAllFiles success: ${result.files.length} files`);
-          const items: FileItem[] = result.files.map(f => ({
-            name: f.name,
-            type: f.type,
-            size: f.size,
-            mtime: f.mtime,
-            relativePath: path ? `${path}/${f.name}` : f.name,
-            isDownloaded: false
-          }) as FileItem);
-          resolve(items);
-        } catch (e) {
-          reject(new Error('Failed to parse response'));
-        }
-      });
-    });
-  }
-
-  /**
-   * 获取单个文件/目录的元信息
-   * 注意：当前代码中未被调用，预留接口
-   * @param path 相对根目录的路径
-   * @returns 文件元信息（name、type、size、mtime）
-   */
-  async getFileInfo(path: string): Promise<FileInfoResponse> {
-    const request = http.createHttp();
-    const url = `${ApiService.BASE_URL}/files/info?path=${encodeURIComponent(path)}`;
-    LogUtil.info(`[ApiService] getFileInfo request: ${url}`);
-
-    return new Promise((resolve, reject) => {
-      request.request(url, {
-        method: http.RequestMethod.GET,
-        expectDataType: http.HttpDataType.STRING,
-        header: { 'Accept': 'application/json' }
-      }, (err, data) => {
-        request.destroy();
-        if (err) {
-          LogUtil.error(`[ApiService] getFileInfo network error: ${err.message}`);
-          reject(new Error(`Network error: ${err.message}`));
-          return;
-        }
-        LogUtil.info(`[ApiService] getFileInfo response code: ${data.responseCode}`);
-        if (data.responseCode !== 200) {
-          reject(this.parseError(data.result as string, data.responseCode));
-          return;
-        }
-        try {
-          const result = JSON.parse(data.result as string) as FileInfoResponse;
-          LogUtil.info(`[ApiService] getFileInfo success: ${result.name}`);
-          resolve(result);
-        } catch (e) {
-          LogUtil.error(`[ApiService] getFileInfo parse error: ${data.result}`);
           reject(new Error('Failed to parse response'));
         }
       });

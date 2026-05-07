@@ -6,6 +6,7 @@ import { FileUtils } from '../utils/FileUtils';
 import { LogUtil } from '../utils/LogUtil';
 import { promptAction } from '@kit.ArkUI';
 import { ObjectUtil } from '../utils/ObjectUtil';
+import { fileIo } from '@kit.CoreFileKit';
 
 /**
  * 文件下载状态（UI 层使用）
@@ -306,13 +307,19 @@ export class FileListViewModel {
       const relPath = this.currentPath
         ? `${this.currentPath}/${f.name}`
         : f.name;
+      // 检查文件是否已下载到本地
+      let downloaded = false;
+      if (f.type === 'file') {
+        const localPath = FileUtils.buildLocalPath(relPath);
+        downloaded = fileIo.accessSync(localPath);
+      }
       items.push({
         name: f.name,
         type: f.type,
         size: f.size,
         mtime: f.mtime,
         relativePath: relPath,
-        isDownloaded: false
+        isDownloaded: downloaded
       });
     }
     this.fileList = items;
