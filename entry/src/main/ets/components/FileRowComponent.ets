@@ -1,6 +1,6 @@
 import { FileItem } from '../model/FileItem';
 import { DownloadStatus, DownloadEvent } from '../model/DownloadTask';
-import { FileDownloadState } from '../viewmodel/FileListViewModel';
+import { FileDownloadState, FileListViewModel } from '../viewmodel/FileListViewModel';
 import { DownloadManager } from '../service/DownloadManager';
 import { FileUtils } from '../utils/FileUtils';
 
@@ -8,11 +8,10 @@ import { FileUtils } from '../utils/FileUtils';
 export struct FileRowComponent {
   @Prop item: FileItem;
   @Prop isMultiSelectMode: boolean;
-  @Prop isSelected: boolean;
+  @Prop selectionVersion: number;
   private onDownload?: (file: FileItem) => void;
   private onSelect?: (name: string) => void;
   private onNavigate?: (item: FileItem) => void;
-
   @State private downloadState: FileDownloadState | null = null;
   private downloadManager: DownloadManager = DownloadManager.getInstance();
   private eventHandler?: (event: DownloadEvent) => void;
@@ -45,13 +44,10 @@ export struct FileRowComponent {
   build() {
     Row() {
       if (this.isMultiSelectMode) {
-        Checkbox({ name: this.item.name })
-          .key(`cb_${this.item.name}_${this.isSelected}`)
-          .select(this.isSelected)
-          .selectedColor($r('sys.color.ohos_id_color_primary'))
-          .onChange(() => {
-            this.onSelect?.(this.item.name)
-          })
+        Image(FileListViewModel.getInstance().selectedFiles.has(this.item.name) ?
+          $r('app.media.ic_checkbox_selected') : $r('app.media.ic_checkbox_normal'))
+          .width(24)
+          .height(24)
           .margin({ right: 8 })
       }
 

@@ -15,6 +15,18 @@ export interface FileDownloadState {
 }
 
 export class FileListViewModel {
+  static instance: FileListViewModel | null = null;
+
+  static create(onUpdate: () => void): FileListViewModel {
+    const vm = new FileListViewModel(onUpdate);
+    FileListViewModel.instance = vm;
+    return vm;
+  }
+
+  static getInstance(): FileListViewModel {
+    return FileListViewModel.instance!;
+  }
+
   currentPath: string = '';
   breadcrumbs: string[] = [''];
   fileList: FileItem[] = [];
@@ -22,6 +34,7 @@ export class FileListViewModel {
   errorMessage: string = '';
   isMultiSelectMode: boolean = false;
   selectedFiles: Set<string> = new Set();
+  selectionVersion: number = 0;
   fileDownloadStates: Record<string, FileDownloadState> = {};
   batchState: FileDownloadState | null = null;
 
@@ -50,6 +63,7 @@ export class FileListViewModel {
             this.batchState = null;
             this.isMultiSelectMode = false;
             this.selectedFiles.clear();
+            this.selectionVersion++;
             this.onUpdate();
           }, 2000);
         } else if (task.status === DownloadStatus.FAILED) {
@@ -146,6 +160,7 @@ export class FileListViewModel {
     this.isMultiSelectMode = !this.isMultiSelectMode;
     if (!this.isMultiSelectMode) {
       this.selectedFiles.clear();
+      this.selectionVersion++;
     }
     LogUtil.info(`[VM] toggleMultiSelect: ${this.isMultiSelectMode}`);
     this.onUpdate();
@@ -157,6 +172,7 @@ export class FileListViewModel {
     } else {
       this.selectedFiles.add(fileName);
     }
+    this.selectionVersion++;
     this.onUpdate();
   }
 
@@ -164,11 +180,13 @@ export class FileListViewModel {
     for (const item of this.fileList) {
       this.selectedFiles.add(item.name);
     }
+    this.selectionVersion++;
     this.onUpdate();
   }
 
   deselectAll(): void {
     this.selectedFiles.clear();
+    this.selectionVersion++;
     this.onUpdate();
   }
 

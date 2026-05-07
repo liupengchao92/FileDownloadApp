@@ -17,8 +17,9 @@ struct Index {
   @State isMultiSelectMode: boolean = false;
   @State selectedFilesCount: number = 0;
   @State isRefreshing: boolean = false;
+  @State selectionVersion: number = 0;
   @State batchState: FileDownloadState | null = null;
-  private viewModel: FileListViewModel = new FileListViewModel(() => {
+  private viewModel: FileListViewModel = FileListViewModel.create(() => {
     this.syncState();
   });
 
@@ -41,6 +42,7 @@ struct Index {
     this.errorMessage = this.viewModel.errorMessage;
     this.isMultiSelectMode = this.viewModel.isMultiSelectMode;
     this.selectedFilesCount = this.viewModel.selectedFiles.size;
+    this.selectionVersion = this.viewModel.selectionVersion;
     this.batchState = this.viewModel.batchState;
   }
 
@@ -154,7 +156,7 @@ struct Index {
               .height(36)
               .style({ strokeWidth: 4 })
               .color('#09bb07')
-            Text('解压中')
+            Text('解压...')
               .fontSize(10)
               .fontColor('#09bb07')
           }
@@ -183,15 +185,11 @@ struct Index {
           .width(24)
           .height(24)
       } else if (this.selectedFilesCount > 0) {
-        Button() {
-          Text(`下载 (${this.selectedFilesCount})`)
-            .fontSize(14)
-            .fontColor(Color.White)
-        }
-        .type(ButtonType.Capsule)
-        .height(36)
+        Button(`下载 (${this.selectedFilesCount})`)
+        .fontSize(14)
+        .fontColor(Color.White)
+        .height(32)
         .padding({ left: 8, right: 8 })
-        .backgroundColor($r('sys.color.ohos_id_color_primary'))
         .onClick(() => {
           this.viewModel.startBatchDownload()
         })
@@ -279,7 +277,7 @@ struct Index {
               FileRowComponent({
                 item: item,
                 isMultiSelectMode: this.isMultiSelectMode,
-                isSelected: this.viewModel.selectedFiles.has(item.name),
+                selectionVersion: this.selectionVersion,
                 onDownload: (file: FileItem) => { this.viewModel.startDownload(file) },
                 onSelect: (name: string) => { this.viewModel.toggleSelect(name) },
                 onNavigate: (dir: FileItem) => { this.viewModel.navigateToDir(dir) }
