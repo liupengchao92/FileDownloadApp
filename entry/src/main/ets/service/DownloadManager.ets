@@ -359,8 +359,8 @@ export class DownloadManager {
   /**
    * 执行批量下载任务
    * 流程：
-   *   1. 收集所有文件路径，请求服务端打包为 ZIP 下载
-   *   2. 下载完成后将 ZIP 解压到沙盒根目录（保持目录结构）
+   *   1. 收集所有文件路径，检查存储空间，请求服务端打包为 ZIP 下载
+   *   2. 计算路径公共父目录前缀，解压到 sandboxRoot + 前缀（保持目录结构）
    *   3. 清理临时 ZIP 文件
    *
    * @param task 批量下载任务（携带 batchInfo）
@@ -399,15 +399,25 @@ export class DownloadManager {
         throw new Error('Task cancelled before extraction');
       }
 
-      // 阶段二：解压 ZIP 到沙盒根目录
+      // 阶段二：解压 ZIP 到正确的目录
+      // 服务端创建 ZIP 时可能剥离了公共父目录前缀，需要在解压时补回
+      // 例如 paths=["documents/projectA","documents/projectB"] → 公共前缀="documents"
+      // 解压目标 = sandboxRoot + "/documents"，确保文件保存在 ServerMirror/documents/ 下
       if (task.batchInfo) {
         task.batchInfo.phase = 'extract';
       }
       task.progress = 60;
       this.notify({ type: 'statusChange', taskId: task.id, task });
 
-      // 解压 ZIP，文件会自动按服务端目录结构保存
-      await FileUtils.extractZip(zipPath, sandboxRoot);
+      // 计算公共父目录前缀，确定解压目标
+      const commonPrefix = FileUtils.getCommonPrefix(paths);
+      const extractDest = commonPrefix
+        ? `${sandboxRoot}/${commonPrefix}`
+        : sandboxRoot;
+      await FileUtils.ensureDir(`${extractDest}/placeholder`);
+
+      // 解压 ZIP，文件会按目录结构保存到 extractDest 下
+      await FileUtils.extractZip(zipPath, extractDest);
 
       task.progress = 99;
       this.notify({ type: 'progress', taskId: task.id, task });

@@ -163,6 +163,44 @@ export class FileUtils {
   }
 
   /**
+   * 提取多个路径的公共父目录前缀
+   * 用于批量下载时确定 ZIP 解压目标目录，确保文件保存在正确的父目录下
+   *
+   * @param paths 文件相对路径数组，如 ["documents/projectA", "documents/projectB"]
+   * @returns 公共前缀，如 "documents"；无公共前缀时返回空字符串
+   */
+  static getCommonPrefix(paths: string[]): string {
+    if (paths.length === 0) {
+      return '';
+    }
+    // 将每个路径按 '/' 分割为段
+    const segmentsList: string[][] = paths.map(p => p.split('/'));
+    // 取最短路径的长度作为比较上限
+    const minLen = Math.min(...segmentsList.map(s => s.length));
+    const common: string[] = [];
+    for (let i = 0; i < minLen; i++) {
+      const seg = segmentsList[0][i];
+      // 仅比较到倒数第二段（最后一段是文件/文件夹名，不作为公共前缀）
+      if (i === minLen - 1) {
+        break;
+      }
+      let allMatch = true;
+      for (let j = 1; j < segmentsList.length; j++) {
+        if (segmentsList[j][i] !== seg) {
+          allMatch = false;
+          break;
+        }
+      }
+      if (allMatch) {
+        common.push(seg);
+      } else {
+        break;
+      }
+    }
+    return common.join('/');
+  }
+
+  /**
    * 解压 ZIP 文件到指定目录
    * 使用 @kit.BasicServicesKit 的 zlib.decompressFile
    * 解压后会保持 ZIP 内的目录结构
