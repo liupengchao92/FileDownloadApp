@@ -186,13 +186,13 @@ struct Index {
           .height(24)
       } else if (this.selectedFilesCount > 0) {
         Button(`下载 (${this.selectedFilesCount})`)
-        .fontSize(14)
-        .fontColor(Color.White)
-        .height(32)
-        .padding({ left: 8, right: 8 })
-        .onClick(() => {
-          this.viewModel.startBatchDownload()
-        })
+          .fontSize(14)
+          .fontColor(Color.White)
+          .height(32)
+          .padding({ left: 8, right: 8 })
+          .onClick(() => {
+            this.viewModel.startBatchDownload()
+          })
       } else {
         Button() {
           Text('下载')
@@ -231,24 +231,23 @@ struct Index {
       .alignItems(HorizontalAlign.Center)
     } else if (this.errorMessage) {
       Column() {
-        Text('⚠')
-          .fontSize(48)
+        Image($r('app.media.ic_fail'))
+          .width(64)
+          .height(64)
+
         Text(this.errorMessage)
           .fontSize(14)
           .fontColor($r('sys.color.ohos_id_color_secondary'))
           .margin({ top: 12 })
-        Button() {
-          Text('重试')
-            .fontSize(14)
-            .fontColor(Color.White)
-        }
-        .type(ButtonType.Capsule)
-        .height(36)
-        .margin({ top: 16 })
-        .backgroundColor($r('sys.color.ohos_id_color_primary'))
-        .onClick(() => {
-          this.viewModel.refresh()
-        })
+
+        Button('重试')
+          .type(ButtonType.Capsule)
+          .height(32)
+          .padding({ left: 10, right: 10 })
+          .margin({ top: 16 })
+          .onClick(() => {
+            this.viewModel.refresh()
+          })
       }
       .width('100%')
       .height('100%')
@@ -278,9 +277,15 @@ struct Index {
                 item: item,
                 isMultiSelectMode: this.isMultiSelectMode,
                 selectionVersion: this.selectionVersion,
-                onDownload: (file: FileItem) => { this.viewModel.startDownload(file) },
-                onSelect: (name: string) => { this.viewModel.toggleSelect(name) },
-                onNavigate: (dir: FileItem) => { this.viewModel.navigateToDir(dir) }
+                onDownload: (file: FileItem) => {
+                  this.viewModel.startDownload(file)
+                },
+                onSelect: (name: string) => {
+                  this.viewModel.toggleSelect(name)
+                },
+                onNavigate: (dir: FileItem) => {
+                  this.viewModel.navigateToDir(dir)
+                }
               })
             }
           })
@@ -302,6 +307,4 @@ struct Index {
       })
     }
   }
-
-
 }

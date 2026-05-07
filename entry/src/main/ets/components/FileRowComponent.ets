@@ -1,5 +1,5 @@
 import { FileItem } from '../model/FileItem';
-import { DownloadStatus, DownloadEvent } from '../model/DownloadTask';
+import { DownloadEvent, DownloadStatus } from '../model/DownloadTask';
 import { FileDownloadState, FileListViewModel } from '../viewmodel/FileListViewModel';
 import { DownloadManager } from '../service/DownloadManager';
 import { FileUtils } from '../utils/FileUtils';
@@ -62,10 +62,13 @@ export struct FileRowComponent {
           .maxLines(1)
 
         Row() {
-          Text(FileUtils.formatFileSize(this.item.size))
-            .fontSize(12)
-            .fontColor($r('sys.color.ohos_id_color_secondary'))
-          Text('  ')
+          if (this.item.type !== 'dir') {
+            Text(FileUtils.formatFileSize(this.item.size))
+              .fontSize(12)
+              .fontColor($r('sys.color.ohos_id_color_secondary'))
+            Text('  ')
+          }
+
           Text(FileUtils.formatDate(this.item.mtime))
             .fontSize(12)
             .fontColor($r('sys.color.ohos_id_color_secondary'))
@@ -121,7 +124,7 @@ export struct FileRowComponent {
       Image($r('app.media.ic_error'))
         .width(24)
         .height(24)
-    } else {
+    } else if (!this.isMultiSelectMode) {
       Image($r('app.media.ic_download'))
         .width(24)
         .height(24)
