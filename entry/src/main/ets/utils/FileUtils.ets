@@ -18,11 +18,11 @@ export class FileUtils {
 
   /**
    * 初始化沙盒根目录
-   * 路径为 {应用filesDir}/ServerMirror，所有下载文件保存在此目录下
+   * 路径为 {应用filesDir}/gtdata，所有下载文件保存在此目录下
    * @param context 应用上下文
    */
   static init(context: common.Context): void {
-    FileUtils.sandboxRoot = `${context.filesDir}/ServerMirror`;
+    FileUtils.sandboxRoot = `${context.filesDir}/gtdata`;
     LogUtil.info(`FileUtils initialized, sandboxRoot: ${FileUtils.sandboxRoot}`);
   }
 
