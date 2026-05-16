@@ -35,6 +35,8 @@ Index.ets (Page)
 
 服务端地址：`http://192.168.115.144:3000/api`
 
+服务端源码：[FileManagerSystem](https://github.com/liupengchao92/FileManagerSystem)
+
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/files?path=...` | GET | 获取目录文件列表 |
